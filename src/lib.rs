@@ -1,10 +1,8 @@
-mod utils;
 pub mod da;
 pub mod error;
-pub mod client;
-pub mod header;
-use std::sync::Arc;
+mod utils;
 use da::{CelestiaConnection, DataAvailabilityLayer};
+use std::sync::Arc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 
@@ -21,9 +19,10 @@ pub fn greet() {
 async fn initialize_da_layer() -> Option<Arc<dyn DataAvailabilityLayer + 'static>> {
     match CelestiaConnection::new(
         &"ws://localhost:26658".to_string(),
-        None,
         &"00000000000000de1008".to_string(),
-    ).await {
+    )
+    .await
+    {
         Ok(da) => Some(Arc::new(da) as Arc<dyn DataAvailabilityLayer + 'static>),
         Err(e) => {
             alert("Failed to connect to Celestia");

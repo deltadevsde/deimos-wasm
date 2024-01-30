@@ -1,13 +1,11 @@
-
 use std::convert::TryFrom;
 use std::sync::{Arc, RwLock};
 
-use async_trait::async_trait;
-use celestia_types::{nmt::Namespace, Blob, blob::SubmitOptions};
-use serde::{Deserialize, Serialize};
-use crate::client::Client;
 use crate::error::GeneralError;
-
+use async_trait::async_trait;
+use celestia_rpc::{client::WasmClient, BlobClient, HeaderClient};
+use celestia_types::{nmt::Namespace, Blob};
+use serde::{Deserialize, Serialize};
 
 use crate::error::DataAvailabilityError;
 
@@ -25,21 +23,13 @@ impl TryFrom<&Blob> for EpochJson {
     fn try_from(value: &Blob) -> Result<Self, GeneralError> {
         // convert blob data to utf8 string
         let data_str = String::from_utf8(value.data.clone()).map_err(|e| {
-            GeneralError::ParsingError(format!(
-                "Could not convert blob data to utf8 string: {}",
-                e
-            ))
+            GeneralError::ParsingError(format!("Could not convert blob data to utf8 string: {}", e))
         })?;
 
         // convert utf8 string to EpochJson
-        serde_json::from_str(&data_str).map_err(|e| {
-            GeneralError::ParsingError(format!(
-                "Could not parse epoch json: {}",
-                e
-            ))
-        })
+        serde_json::from_str(&data_str)
+            .map_err(|e| GeneralError::ParsingError(format!("Could not parse epoch json: {}", e)))
     }
-    
 }
 
 #[derive(Debug, Default, Clone, Eq, PartialEq, Deserialize)]
@@ -61,7 +51,7 @@ pub trait DataAvailabilityLayer: Send + Sync {
 }
 
 pub struct CelestiaConnection {
-    pub client: Client,
+    pub client: WasmClient,
     pub namespace_id: Namespace,
     sync_target: Arc<RwLock<u64>>,
 }
@@ -70,16 +60,23 @@ impl CelestiaConnection {
     // TODO: Should take config
     pub async fn new(
         connection_string: &String,
-        auth_token: Option<&str>,
         namespace_hex: &String,
     ) -> Result<Self, DataAvailabilityError> {
-        let client = Client::new(&connection_string, auth_token).await.map_err(|e| {
-            DataAvailabilityError::InitializationError(format!("Websocket initialization failed: {}", e))
+        let client = WasmClient::new(&connection_string).await.map_err(|e| {
+            DataAvailabilityError::InitializationError(format!(
+                "Websocket initialization failed: {}",
+                e
+            ))
         })?;
 
         let decoded_hex = match hex::decode(namespace_hex) {
             Ok(hex) => hex,
-            Err(e) => return Err(DataAvailabilityError::InitializationError(format!("Hex decoding failed: {}", e))),
+            Err(e) => {
+                return Err(DataAvailabilityError::InitializationError(format!(
+                    "Hex decoding failed: {}",
+                    e
+                )))
+            }
         };
 
         let namespace_id = Namespace::new_v0(&decoded_hex).map_err(|e| {
@@ -109,7 +106,10 @@ impl DataAvailabilityLayer for CelestiaConnection {
     async fn initialize_sync_target(&self) -> Result<u64, DataAvailabilityError> {
         match HeaderClient::header_network_head(&self.client).await {
             Ok(extended_header) => Ok(extended_header.header.height.value()),
-            Err(err) => Err(DataAvailabilityError::NetworkError(format!("Could not get network head from DA layer: {}", err))),
+            Err(err) => Err(DataAvailabilityError::NetworkError(format!(
+                "Could not get network head from DA layer: {}",
+                err
+            ))),
         }
     }
 
@@ -141,12 +141,14 @@ impl DataAvailabilityLayer for CelestiaConnection {
     async fn start(&self) -> Result<(), DataAvailabilityError> {
         println!("Starting light client");
 
-        let mut header_sub = HeaderClient::header_subscribe(&self.client).await.map_err(|e| {
-            DataAvailabilityError::NetworkError(format!(
-                "Could not subscribe to header updates from DA layer: {}",
-                e
-            ))
-        })?;
+        let mut header_sub = HeaderClient::header_subscribe(&self.client)
+            .await
+            .map_err(|e| {
+                DataAvailabilityError::NetworkError(format!(
+                    "Could not subscribe to header updates from DA layer: {}",
+                    e
+                ))
+            })?;
 
         let sync_target_mutex_copy = self.sync_target.clone();
         wasm_bindgen_futures::spawn_local(async move {
@@ -167,4 +169,3 @@ impl DataAvailabilityLayer for CelestiaConnection {
         Ok(())
     }
 }
-

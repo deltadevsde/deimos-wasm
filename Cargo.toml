@@ -10,9 +10,6 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["console_error_panic_hook"]
 
-[build]
-target = "wasm32-unknown-unknown"
-
 [dependencies]
 wasm-bindgen = "0.2.84"
 wasm-bindgen-futures = "0.4.18"
@@ -24,19 +21,15 @@ celestia-types = "0.1.0"
 hex = "0.4.3"
 getrandom = { version = "0.2", features = ["js"] }
 jsonrpsee-types = { version = "0.21.0" }
-jsonrpsee-core = { version = "0.21.0", features = [ "client"] }
+celestia-rpc = { path = "/Users/rford/Programming/Celestia/celestia-rpc", features = ["wasm-bindgen"]}
 jsonrpsee-proc-macros = "0.21.0"
 proc-macro-crate = "3.1.0"
-
-
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.7", optional = true }
-
-jsonrpsee-wasm-client = { version = "0.21.0", default-features = false }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.34"
